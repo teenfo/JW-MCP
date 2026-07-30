@@ -31,6 +31,15 @@ test('도구 이름이 중복되지 않는다', () => {
   assert.equal(toolNames.size, allTools.length);
 });
 
+test('성구 도구 4종이 모두 langwritten 을 받는다', () => {
+  // 상류는 이 넷이 영어 고정이라 한국어 사용에서 사실상 못 썼다.
+  const scriptureTools = ['search_bible_books', 'get_bible_verse', 'get_verse_with_study', 'get_bible_verse_url'];
+  for (const name of scriptureTools) {
+    const tool = allTools.find((t) => t.name === name);
+    assert.ok(tool.inputSchema.properties.langwritten, `${name} 에 langwritten 없음`);
+  }
+});
+
 test('알 수 없는 도구는 isError 로 응답한다', async () => {
   const result = await callTool({ params: { name: 'nope', arguments: {} } });
   assert.equal(result.isError, true);

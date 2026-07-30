@@ -4,6 +4,8 @@
  */
 
 import { scraper } from './wol-scraper.js';
+import { SUPPORTED_LANGS, DEFAULT_LANG, resolveLocale } from './wol-locales.js';
+import { searchLocalizedBooks, getLocalizedBookName } from './bible-books-i18n.js';
 import {
   searchBooks,
   getBookName,
@@ -13,13 +15,24 @@ import {
   BIBLE_BOOKS
 } from './bible-books.js';
 
+// 네 도구가 같은 인자를 쓰도록 스키마 조각을 공유한다. 파수대·워크북 도구의
+// langwritten 과 이름·값이 같아야 한 작업에서 언어를 섞지 않고 쓸 수 있다.
+const langSchema = {
+  type: 'string',
+  description:
+    `Language code for the content (default "${DEFAULT_LANG}" = English). ` +
+    `Supported: ${SUPPORTED_LANGS.join(', ')}. Use "KO" for Korean (한국어 신세계역). ` +
+    'Same values as the langwritten parameter on the Watchtower/Workbook tools.',
+  default: DEFAULT_LANG,
+};
+
 // ============================================================================
 // Tool 1: search_bible_books
 // ============================================================================
 
 export const searchBibleBooksTool = {
   name: 'search_bible_books',
-  description: 'Search for Bible books by name or abbreviation. Returns book numbers (1-66) and names. Useful for finding the correct book number for other scripture tools. Examples: "matt" -> Matthew (40), "1 john" -> 1 John (62), "gen" -> Genesis (1).',
+  description: 'Search for Bible books by name or abbreviation and get their book number (1-66), which the other scripture tools require. Searches English names/abbreviations and, when langwritten is set, that language\'s names and abbreviations too. Examples: "matt" -> Matthew (40), "잠언" or "잠" (with langwritten "KO") -> 잠언 (20), "1 john" -> 1 John (62).',
   inputSchema: {
     type: 'object',
     properties: {
@@ -31,13 +44,14 @@ export const searchBibleBooksTool = {
         type: 'number',
         description: 'Maximum number of results to return (default: 10)',
         default: 10
-      }
+      },
+      langwritten: langSchema
     },
     required: ['query']
   }
 };
 
-export async function searchBibleBooksImplementation(query, limit = 10) {
+export async function searchBibleBooksImplementation(query, limit = 10, langwritten = DEFAULT_LANG) {
   try {
     if (!query || typeof query !== 'string') {
       return {
@@ -49,22 +63,39 @@ export async function searchBibleBooksImplementation(query, limit = 10) {
       };
     }
 
-    const results = searchBooks(query, limit);
+    // 영어 이름/약칭과 요청 언어의 이름/약칭을 함께 찾고 번호로 합친다.
+    // 한쪽만 쓰면 "Proverbs"(영어명)와 "잠"(한국어 약칭)이 서로 안 걸린다.
+    const merged = new Map();
+    for (const r of searchBooks(query, 66)) {
+      merged.set(r.number, { number: r.number, name: r.name, score: r.score, matched: r.name });
+    }
+    for (const r of searchLocalizedBooks(query, langwritten, 66)) {
+      const prev = merged.get(r.number);
+      if (!prev || r.score > prev.score) merged.set(r.number, r);
+    }
+
+    const results = [...merged.values()]
+      .sort((a, b) => b.score - a.score || a.number - b.number)
+      .slice(0, limit);
 
     if (results.length === 0) {
+      const hint = langwritten && langwritten.toUpperCase() !== DEFAULT_LANG
+        ? ''
+        : ' 한국어 책 이름으로 찾으려면 langwritten="KO" 를 함께 보내세요.';
       return {
         content: [{
           type: 'text',
-          text: `No Bible books found matching "${query}". Try using a book name, abbreviation, or number (1-66).`
+          text: `No Bible books found matching "${query}". Try a book name, abbreviation, or number (1-66).${hint}`
         }]
       };
     }
 
-    // Format results
     const formattedResults = results.map(r => ({
       number: r.number,
       name: r.name,
+      localized_name: getLocalizedBookName(r.number, langwritten),
       testament: r.number <= 39 ? 'Old Testament' : 'New Testament',
+      matched: r.matched,
       relevance_score: r.score
     }));
 
@@ -73,6 +104,7 @@ export async function searchBibleBooksImplementation(query, limit = 10) {
         type: 'text',
         text: JSON.stringify({
           query: query,
+          language: String(langwritten || DEFAULT_LANG).toUpperCase(),
           results_count: formattedResults.length,
           books: formattedResults
         }, null, 2)
@@ -96,7 +128,7 @@ export async function searchBibleBooksImplementation(query, limit = 10) {
 
 export const getBibleVerseTool = {
   name: 'get_bible_verse',
-  description: 'Get plain Bible verse text from wol.jw.org. Returns just the verse text without study notes or additional content. For comprehensive study content including notes and cross-references, use get_verse_with_study instead.',
+  description: 'Get plain Bible verse text (New World Translation, Study Edition) from wol.jw.org. Returns the COMPLETE verse — poetic books such as Psalms and Proverbs are stored as separate lines on WOL and are joined here, so contrast verses come back whole. For study notes and cross-references use get_verse_with_study instead.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -111,13 +143,14 @@ export const getBibleVerseTool = {
       verse: {
         type: 'number',
         description: 'Verse number within the chapter'
-      }
+      },
+      langwritten: langSchema
     },
     required: ['book', 'chapter', 'verse']
   }
 };
 
-export async function getBibleVerseImplementation(book, chapter, verse) {
+export async function getBibleVerseImplementation(book, chapter, verse, langwritten = DEFAULT_LANG) {
   try {
     // Validate inputs
     const validation = validateReference(book, chapter, verse);
@@ -131,10 +164,7 @@ export async function getBibleVerseImplementation(book, chapter, verse) {
       };
     }
 
-    // Fetch verse
-    const verseData = await scraper.getSingleVerse(book, chapter, verse);
-
-    // Format reference
+    const verseData = await scraper.getSingleVerse(book, chapter, verse, langwritten);
     const reference = formatReference(book, chapter, verse);
 
     return {
@@ -142,11 +172,20 @@ export async function getBibleVerseImplementation(book, chapter, verse) {
         type: 'text',
         text: JSON.stringify({
           reference: reference,
+          localized_reference: `${verseData.book_name} ${chapter}:${verse}`,
           book_number: verseData.book_num,
           book_name: verseData.book_name,
           chapter: verseData.chapter,
           verse: verseData.verse_num,
-          text: verseData.verse_text
+          language: verseData.language,
+          // text 는 상호 참조(+)·각주(*) 마커를 포함한 원문, text_plain 은 뗀 것.
+          // 문서에 그대로 인용할 때는 text_plain 을 쓴다.
+          text: verseData.verse_text,
+          text_plain: verseData.verse_text_plain,
+          // 시 형식 절의 행 구분. 산문책은 항상 1행이다.
+          lines: verseData.lines,
+          line_count: verseData.line_count,
+          url: verseData.url
         }, null, 2)
       }]
     };
@@ -195,9 +234,10 @@ export const getVerseWithStudyTool = {
       },
       limit: {
         type: 'number',
-        description: 'Maximum number of study articles to return. Default: 5 for articles, unlimited for other fields.',
+        description: 'Maximum number of items for list-type fields. Applies to study_articles AND chapter_level.study_articles (the chapter index can be 50+ entries). Default: 5.',
         default: 5
       },
+      langwritten: langSchema,
       fetch: {
         type: 'boolean',
         description: 'Force fresh data from wol.jw.org (useful when content appears to be missing). Default: false',
@@ -208,7 +248,7 @@ export const getVerseWithStudyTool = {
   }
 };
 
-export async function getVerseWithStudyImplementation(book, chapter, verse, fields = ['verses', 'study_notes'], limit = 5, fetch = false) {
+export async function getVerseWithStudyImplementation(book, chapter, verse, fields = ['verses', 'study_notes'], limit = 5, fetch = false, langwritten = DEFAULT_LANG) {
   try {
     // Validate inputs
     const validation = validateReference(book, chapter, verse);
@@ -238,7 +278,8 @@ export async function getVerseWithStudyImplementation(book, chapter, verse, fiel
     // Fetch verse with study content
     const studyData = await scraper.getVerseWithStudy(book, chapter, verse, {
       fields: fields,
-      limit: limit
+      limit: limit,
+      langwritten: langwritten
     });
 
     // Format reference
@@ -247,10 +288,13 @@ export async function getVerseWithStudyImplementation(book, chapter, verse, fiel
     // Build response
     const response = {
       reference: reference,
+      localized_reference: `${studyData.book_name} ${chapter}:${studyData.verse_range}`,
       book_number: studyData.book_num,
       book_name: studyData.book_name,
       chapter: studyData.chapter,
-      verse_range: studyData.verse_range
+      verse_range: studyData.verse_range,
+      language: studyData.language,
+      url: studyData.url
     };
 
     // Add requested fields
@@ -260,6 +304,7 @@ export async function getVerseWithStudyImplementation(book, chapter, verse, fiel
 
     if (studyData.combined_text) {
       response.combined_text = studyData.combined_text;
+      response.combined_text_plain = studyData.combined_text_plain;
     }
 
     if (studyData.study_notes) {
@@ -274,7 +319,10 @@ export async function getVerseWithStudyImplementation(book, chapter, verse, fiel
 
     if (studyData.cross_references) {
       response.cross_references = studyData.cross_references;
-      response.cross_references_count = studyData.cross_references.length;
+      response.cross_references_count = studyData.cross_references_count;
+      if (studyData.cross_references_truncated) {
+        response.cross_references_truncated = studyData.cross_references_truncated;
+      }
     }
 
     if (studyData.chapter_level) {
@@ -320,13 +368,14 @@ export const getBibleVerseURLTool = {
       verse: {
         type: 'string',
         description: 'Optional verse reference. Can be: single verse ("18"), verse range ("14-16"), or comma-separated verses ("1,3,5"). If omitted, returns URL for the entire chapter.'
-      }
+      },
+      langwritten: langSchema
     },
     required: ['book', 'chapter']
   }
 };
 
-export async function getBibleVerseURLImplementation(book, chapter, verse) {
+export async function getBibleVerseURLImplementation(book, chapter, verse, langwritten = DEFAULT_LANG) {
   try {
     // Validate the reference (use verse 1 if no verse provided for validation)
     const verseForValidation = verse ? (verse.toString().split(/[-,]/)[0]) : 1;
@@ -392,8 +441,10 @@ export async function getBibleVerseURLImplementation(book, chapter, verse) {
       verseDisplay = null;
     }
 
-    // Build the jw.org/finder URL
-    const url = `https://www.jw.org/finder?wtlocale=E&prefer=lang&bible=${bibleParam}&pub=nwtsty`;
+    // wtlocale 은 언어 인자를 따라간다. 상류는 여기가 E 로 고정이라, 한국어로
+    // 조회한 구절도 링크만 영어로 열리는 불일치가 있었다.
+    const lang = resolveLocale(langwritten);
+    const url = `https://www.jw.org/finder?wtlocale=${lang.code}&prefer=lang&bible=${bibleParam}&pub=nwtsty`;
 
     return {
       content: [{
@@ -425,14 +476,16 @@ export async function handleScriptureTools(request) {
     case 'search_bible_books':
       return await searchBibleBooksImplementation(
         args.query,
-        args.limit
+        args.limit,
+        args.langwritten
       );
 
     case 'get_bible_verse':
       return await getBibleVerseImplementation(
         args.book,
         args.chapter,
-        args.verse
+        args.verse,
+        args.langwritten
       );
 
     case 'get_verse_with_study':
@@ -442,14 +495,16 @@ export async function handleScriptureTools(request) {
         args.verse,
         args.fields,
         args.limit,
-        args.fetch
+        args.fetch,
+        args.langwritten
       );
 
     case 'get_bible_verse_url':
       return await getBibleVerseURLImplementation(
         args.book,
         args.chapter,
-        args.verse
+        args.verse,
+        args.langwritten
       );
 
     default:
