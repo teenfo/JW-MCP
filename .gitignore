@@ -2,3 +2,8 @@ node_modules/
 data/
 .env
 *.log
+
+# 서버에서 jwmcp 유저의 HOME 이 /opt/jw-mcp 라 npm 캐시가 저장소 안에 생긴다.
+# update.sh 는 추적 파일만 보므로 배포를 막지는 않지만, git status 를 더럽혀
+# "이 트리에 뭔가 손댔나" 를 매번 헷갈리게 만든다.
+.npm/
