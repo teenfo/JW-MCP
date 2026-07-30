@@ -96,8 +96,13 @@ npm run test:oauth # OAuth 전 구간 — 서버를 띄우고 커넥터 흐름�
 ## 배포
 
 `main` 머지 → `jw-mcp-update.timer` 가 5분 내 자동 반영(pull 기반).
-서버 절차는 `docs/SETUP.md`, hosub 대시보드 쪽 변경은 `docs/hosub-dashboard.md`
-(그건 `teenfo/hosub-mcp` 저장소의 별도 PR이다).
+서버 절차는 `docs/SETUP.md`.
+
+대시보드 화면은 **이 저장소의 책임이 아니다.** jw-mcp 는 `/api/dash/*` 를 게시할
+뿐이고 소비자(hosub 대시보드)는 별도 저장소에서 따로 구현한다. 그 경계의 계약이
+`docs/DASHBOARD-API.md` 이며, 응답 형식을 바꿀 때는 그 문서의 11절(변경 정책)을
+지킨다 — 원시 필드는 제거·개명하지 않고, `sections` 항목 구조와 `tone` 값 집합은
+고정이다.
 
 ## 주의
 

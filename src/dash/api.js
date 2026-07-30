@@ -245,17 +245,29 @@ export function buildDashRouter({ stats, users, internalToken }) {
     next();
   });
 
+  /**
+   * 정수 질의 파라미터를 범위 안으로 자른다.
+   *
+   * `parseInt(v) || fallback` 을 쓰면 안 된다 — 0 이 falsy 라 `days=0` 이 하한 1 로
+   * 잘리지 않고 기본값 7 로 튄다. 값이 없거나 숫자가 아닐 때만 기본값을 쓴다.
+   */
+  const intParam = (raw, fallback, min, max) => {
+    const n = parseInt(raw, 10);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(Math.max(n, min), max);
+  };
+
   router.get('/summary', (req, res) => res.json(stats.summary()));
 
   router.get('/users', (req, res) => res.json({ ok: true, users: users.list() }));
 
   router.get('/usage', (req, res) => {
-    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 7, 1), 90);
+    const days = intParam(req.query.days, 7, 1, 90);
     res.json({ ok: true, days, daily: stats.dailyUsage(days), top_tools: stats.topTools(days, 10) });
   });
 
   router.get('/calls', (req, res) => {
-    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 500);
+    const limit = intParam(req.query.limit, 50, 1, 500);
     res.json({ ok: true, calls: stats.recentCalls(limit) });
   });
 

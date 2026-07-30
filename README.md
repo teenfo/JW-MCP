@@ -119,7 +119,7 @@ npm run start:http       # http://127.0.0.1:8604/jw/signup
 ## 문서
 
 - [`docs/SETUP.md`](docs/SETUP.md) — 서버 설치·Caddy 반영·대시보드 연동 런북
-- [`docs/hosub-dashboard.md`](docs/hosub-dashboard.md) — hosub 쪽에 적용할 변경(별도 저장소)
+- [`docs/DASHBOARD-API.md`](docs/DASHBOARD-API.md) — 대시보드 연동 API 스펙 (소비자 구현용 계약)
 - [`docs/UPSTREAM-README.md`](docs/UPSTREAM-README.md) — 상류 저장소 원문 (도구 상세)
 - [`CLAUDE.md`](CLAUDE.md) — Claude Code 용 저장소 안내
 

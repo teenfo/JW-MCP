@@ -118,32 +118,35 @@ https://hosub.duckdns.org/jw/mcp
 
 OAuth 화면이 뜨면 5단계에서 만든 계정으로 로그인 → 승인. 도구 11종이 보이면 성공이다.
 
-## 7. hosub 대시보드 연동
+## 7. 대시보드 연동 준비
 
-jw-mcp 의 내부 토큰을 hosub 쪽 `.env` 에 넣는다:
+jw-mcp 는 조회용 API `/api/dash/*` 를 게시한다. **화면 구현은 이 저장소 밖의 일**이며,
+여기서는 소비자가 붙을 수 있게 토큰만 넘겨준다.
+
+API 계약(엔드포인트·스키마·오류 동작)은 [`DASHBOARD-API.md`](DASHBOARD-API.md) 에 있다.
 
 ```bash
 JW_TOKEN=$(sudo grep '^JW_INTERNAL_TOKEN=' /opt/jw-mcp/.env | cut -d= -f2)
 sudo tee -a /opt/hosub-mcp/.env >/dev/null <<EOF
 
-# --- jw-mcp 연동 (127.0.0.1:8604, 자체 OAuth 서비스) ---
+# --- jw-mcp 연동 (127.0.0.1:8604, 자체 OAuth 를 가진 별도 서비스) ---
 HOSUB_JW_URL=http://127.0.0.1:8604
 HOSUB_JW_TOKEN=${JW_TOKEN}
 EOF
 sudo systemctl restart hosub-dash
 ```
 
-hosub-mcp 저장소 쪽 코드 변경은 [`hosub-dashboard.md`](hosub-dashboard.md) 참고
-(별도 저장소·별도 PR).
-
-연동 확인:
+API 가 살아 있는지 확인:
 
 ```bash
 curl -s -H "X-Internal-Token: $JW_TOKEN" http://127.0.0.1:8604/api/dash/summary | head -c 200
 
-# ★ 공인 인터넷에서는 닿지 않아야 한다
-curl -s -o /dev/null -w '%{http_code}\n' https://hosub.duckdns.org/api/dash/summary   # 404 또는 401
+# ★ 공인 인터넷에서는 닿지 않아야 한다 (Caddy 가 /api/dash 를 라우팅하지 않는다)
+curl -s -o /dev/null -w '%{http_code}\n' https://hosub.duckdns.org/api/dash/summary   # 404
 ```
+
+서비스 상태만 대시보드에 띄우려면 hosub 의 `config/registry.yaml` 에 jw-mcp 를
+등록하는 것만으로 충분하다 — [`DASHBOARD-API.md` 10절](DASHBOARD-API.md#10-서비스-등록-선택) 참고.
 
 ## 8. 자동 배포 확인
 
