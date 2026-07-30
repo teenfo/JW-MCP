@@ -1,0 +1,26 @@
+{
+  "name": "jw-mcp",
+  "version": "2.0.0",
+  "description": "JW.org 콘텐츠 MCP 서버 — 자체 OAuth 2.1(다중 사용자) 인증과 대시보드 API 포함",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "start:http": "node src/http-server.js",
+    "test": "node --test tests/*.test.js",
+    "test:oauth": "node scripts/test-oauth-flow.js"
+  },
+  "bin": {
+    "jw-mcp": "./src/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.21.1",
+    "better-sqlite3": "^11.7.0",
+    "cheerio": "^1.1.2",
+    "express": "^4.21.2",
+    "node-fetch": "^3.3.2"
+  }
+}

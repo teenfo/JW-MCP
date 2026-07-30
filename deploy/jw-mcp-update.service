@@ -1,0 +1,15 @@
+# /etc/systemd/system/jw-mcp-update.service
+# jw-mcp-update.timer 가 5분마다 호출한다. hosub-mcp-update 와 같은 pull 기반 배포다
+# (NAT 뒤 홈서버라 SSH 인바운드를 열지 않는다).
+[Unit]
+Description=jw-mcp 자동 업데이트 (추적 브랜치 pull → 재시작)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=jwmcp
+Group=jwmcp
+WorkingDirectory=/opt/jw-mcp
+EnvironmentFile=/opt/jw-mcp/.env
+ExecStart=/opt/jw-mcp/deploy/update.sh

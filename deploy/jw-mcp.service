@@ -1,0 +1,35 @@
+# /etc/systemd/system/jw-mcp.service
+# 설치: deploy/bootstrap.sh 가 자동으로 배치한다. 수동 설치는 docs/SETUP.md 참고.
+[Unit]
+Description=JW MCP Server (JW.org 콘텐츠 MCP · 자체 OAuth 2.1)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=jwmcp
+Group=jwmcp
+WorkingDirectory=/opt/jw-mcp
+EnvironmentFile=/opt/jw-mcp/.env
+ExecStart=/usr/bin/node src/http-server.js
+Restart=on-failure
+RestartSec=3
+
+# hosub-mcp 와 달리 이 서비스는 셸을 호출하지 않는다(sudo·systemctl·docker 전부 무관).
+# 그래서 hosub-mcp 가 포기해야 했던 샌드박싱을 여기서는 전부 켤 수 있다.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+# SQLite DB 와 로그만 쓸 수 있으면 된다.
+ReadWritePaths=/opt/jw-mcp/data
+
+[Install]
+WantedBy=multi-user.target

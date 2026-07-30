@@ -1,0 +1,13 @@
+# /etc/systemd/system/jw-mcp-update.timer
+[Unit]
+Description=jw-mcp 자동 업데이트 5분 주기 폴링
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+# 여러 서비스의 타이머가 동시에 깨어나 git/npm 을 함께 돌리지 않게 흩뜨린다.
+RandomizedDelaySec=45
+Unit=jw-mcp-update.service
+
+[Install]
+WantedBy=timers.target
