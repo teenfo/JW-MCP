@@ -183,3 +183,46 @@ test('구조화가 빗나가도 예외를 던지지 않는다', () => {
     assert.equal(typeof s.parsed.paragraphs, 'number');
   }
 });
+
+// --- 커넥터 실사용에서 드러난 추출 결함 (2026-07-31 2차) ---
+
+test('서수 숫자가 장 번호 첫 자리를 먹지 않는다', () => {
+  // "마태복음 22:37" 이 "마태복음 2 2:37" 로 쪼개지던 회귀.
+  // 서수는 영어처럼 앞에 오거나("1 John") 한국어처럼 뒤에 온다("고린도 전서").
+  const s = structureArticle(
+    '제목\n\n1 (마태복음 22:37) (시편 133:1) 히브리서 10:25 고린도 전서 15:58 1 John 3:16',
+    '제목',
+    'KO',
+  );
+  const found = s.paragraphs[0].scriptures;
+  assert.ok(found.includes('마태복음 22:37'), JSON.stringify(found));
+  assert.ok(found.includes('시편 133:1'));
+  assert.ok(found.includes('히브리서 10:25'));
+  assert.ok(found.includes('고린도 전서 15:58'));
+  assert.ok(found.includes('1 John 3:16'));
+});
+
+test('줄바꿈으로 잘린 절 범위·나열을 이어 붙인다', () => {
+  // RTF 파서가 "3:18-\n20." / "3:5,\n6." 처럼 자른다. 그대로 두면 "3:18-" 이 남는다.
+  const s = structureArticle('제목\n\n1 고린도 전서 3:18-\n20. 그리고 잠언 3:5,\n6.', '제목', 'KO');
+  const found = s.paragraphs[0].scriptures;
+  assert.ok(found.includes('고린도 전서 3:18-20'), JSON.stringify(found));
+  assert.ok(found.includes('잠언 3:5,6'));
+  assert.ok(!found.some((c) => /[-,]$/.test(c)), '꼬리 문장부호가 남았다');
+});
+
+test('각주와 복습란에 답란 표시가 남지 않는다', () => {
+  const sample = [
+    '제목',
+    '[각주] *본문 앞부분',
+    'Your answer—뒷부분입니다. [각주를 마칩니다]',
+    '[네모 기사] 요점',
+    '첫 상자 [네모 기사를 마칩니다]',
+    '[네모 기사] 복습 질문',
+    'Your answer 항목 하나 [네모 기사를 마칩니다]',
+  ].join('\n');
+  const s = structureArticle(sample, '제목', 'KO');
+  assert.ok(!s.footnotes[0].text.includes('Your answer'), s.footnotes[0].text);
+  assert.ok(!s.footnotes[0].text.startsWith('*'), '각주 마커(*)가 남았다');
+  assert.ok(!s.reviewBox.includes('Your answer'), s.reviewBox);
+});

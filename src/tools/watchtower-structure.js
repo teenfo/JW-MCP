@@ -218,7 +218,12 @@ export function structureArticle(parsedText, title = '', langwritten = 'E') {
   // 2) RTF 줄바꿈이 토큰 한가운데를 자른다. 두 가지를 이어 붙인다:
   //    - 성구 번호   "빌립보서 3:\n16."  → "빌립보서 3:16."
   //    - 항 범위     "1-\n2. (ㄱ) …"     → "1-2. (ㄱ) …"   (안 붙이면 "1-" 이 소제목으로 잡힌다)
-  working = working.replace(/:\s*\n\s*(\d)/g, ':$1').replace(/^(\d+)\s*[-–]\s*\n\s*(\d+\.)/gm, '$1-$2');
+  //    - 절 범위      "3:18-\n20."        → "3:18-20."
+  //    - 절 나열      "3:5,\n6."          → "3:5,6."
+  working = working
+    .replace(/^(\d+)\s*[-–]\s*\n\s*(\d+\.)/gm, '$1-$2')
+    .replace(/:\s*\n\s*(\d)/g, ':$1')
+    .replace(/(\d)\s*([-–,])\s*\n\s*(\d)/g, '$1$2$3');
 
   const lines = working.split('\n').map((l) => l.trim());
 
@@ -350,9 +355,13 @@ export function structureArticle(parsedText, title = '', langwritten = 'E') {
     sections: sections.filter((s) => s.paragraphs.length),
     paragraphs,
     readAloudScriptures: readAloud.map(parseReadAloud),
-    footnotes: footnotes.map((t, i) => ({ marker: String.fromCharCode(97 + i), text: t })),
+    footnotes: footnotes.map((t, i) => ({
+      marker: String.fromCharCode(97 + i),
+      // 각주 안에도 답란 표시가 끼어든다 — 각주 본문에는 의미가 없다.
+      text: t.replace(/^\*/, '').replace(/Your answer/g, ' ').replace(/\s{2,}/g, ' ').trim(),
+    })),
     // 마지막 박스는 관행상 복습란이다(요점 박스와 같지 않을 때만).
-    reviewBox: boxes.length > 1 ? boxes[boxes.length - 1] : null,
+    reviewBox: boxes.length > 1 ? stripBoxLabel(boxes[boxes.length - 1]) : null,
     parsed: {
       paragraphs: paragraphs.length,
       questions: questions.size,
@@ -394,11 +403,16 @@ function parseReadAloud(block) {
 /** 본문에서 성구 표기를 뽑는다 (한국어·영어 책 이름 + 장:절). */
 function extractScriptures(text) {
   const found = new Set();
-  const re = /([가-힣A-Za-z]+(?:\s(?:전서|후서|상|하|[123]))?)\s*(\d+):([\d,\s-]+)/g;
+  // 서수는 영어처럼 앞에 붙거나("1 John"), 한국어처럼 뒤에 붙는다("고린도 전서").
+  // 서수 자리에 맨숫자를 허용하면 "마태복음 22:37" 의 장 번호 첫 자리를 먹는다.
+  // 절 부분에서 공백은 **구분자 뒤에만** 허용한다("5:1, 2"). 그냥 \s 를 넣으면
+  // "고린도 전서 15:58 1 John 3:16" 의 뒤 서수까지 삼켜 "15:581" 이 된다.
+  const re = /((?:[123]\s)?[가-힣A-Za-z]+(?:\s(?:전서|후서|상권|하권|상|하))?)\s*(\d+):(\d+(?:\s*[,-]\s*\d+)*)/g;
   let m;
   while ((m = re.exec(text)) !== null) {
-    const cite = `${m[1].trim()} ${m[2]}:${m[3].trim().replace(/\s+/g, '')}`;
-    found.add(cite.replace(/[,\s]+$/, ''));
+    const verses = m[3].replace(/\s+/g, '').replace(/[-,]+$/, ''); // 줄바꿈으로 잘린 꼬리 제거
+    if (!verses) continue;
+    found.add(`${m[1].trim()} ${m[2]}:${verses}`);
   }
   return [...found];
 }
