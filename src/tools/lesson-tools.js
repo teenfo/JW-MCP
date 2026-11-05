@@ -6,15 +6,15 @@ import { getWolDocument, getPublicationToc } from './wol-document.js';
  */
 export const getLessonTool = {
   name: 'get_lesson_content',
-  description: '「하느님의 교훈이 담긴 성경 이야기 (훈)」 특정 과의 내용을 가져옵니다. 1-116과까지 지원합니다.',
+  description: '「하느님의 교훈이 담긴 성경 이야기 (훈)」 특정 과의 내용을 가져옵니다. 1-103장까지 있습니다 (wol.jw.org 목차 기준).',
   inputSchema: {
     type: 'object',
     properties: {
       lesson_number: {
         type: 'number',
-        description: '과 번호 (1-116)',
+        description: '과 번호 (1-103)',
         minimum: 1,
-        maximum: 116
+        maximum: 103
       },
       language: {
         type: 'string',
@@ -46,15 +46,15 @@ export const getLessonListTool = {
         type: 'number',
         description: '시작 과 번호 (기본값: 1)',
         minimum: 1,
-        maximum: 116,
+        maximum: 103,
         default: 1
       },
       end: {
         type: 'number',
-        description: '끝 과 번호 (기본값: 116)',
+        description: '끝 과 번호 (기본값: 103)',
         minimum: 1,
-        maximum: 116,
-        default: 116
+        maximum: 103,
+        default: 103
       }
     },
     required: [],
@@ -92,7 +92,7 @@ async function fetchLessonContent(lessonNumber, language = 'ko') {
 }
 
 /** 목차에서 과 목록을 만든다 (그룹이 있으면 모두 연다). */
-async function fetchLessonList(start = 1, end = 116, language = 'ko') {
+async function fetchLessonList(start = 1, end = 103, language = 'ko') {
   const langwritten = langOf(language);
   const first = await getPublicationToc({ symbol: LFB, langwritten });
   const docs = [...first.documents];
@@ -125,8 +125,8 @@ export async function handleLessonTools(request) {
     if (name === 'get_lesson_content') {
       const { lesson_number, language = 'ko' } = args;
       
-      if (!lesson_number || lesson_number < 1 || lesson_number > 116) {
-        throw new Error('lesson_number must be between 1 and 116');
+      if (!lesson_number || lesson_number < 1 || lesson_number > 103) {
+        throw new Error('lesson_number must be between 1 and 103');
       }
 
       const lesson = await fetchLessonContent(lesson_number, language);
@@ -142,10 +142,10 @@ export async function handleLessonTools(request) {
     }
 
     if (name === 'get_lesson_list') {
-      const { language = 'ko', start = 1, end = 116 } = args;
+      const { language = 'ko', start = 1, end = 103 } = args;
       
-      if (start < 1 || start > 116 || end < 1 || end > 116 || start > end) {
-        throw new Error('Invalid start/end range. Must be between 1-116');
+      if (start < 1 || start > 103 || end < 1 || end > 103 || start > end) {
+        throw new Error('Invalid start/end range. Must be between 1-103');
       }
 
       const lessons = await fetchLessonList(start, end, language);
