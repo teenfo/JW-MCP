@@ -6,7 +6,8 @@
  *
  * ## WOL 구조 (2026-11-06 실측, 한국어)
  *
- * - 목차: `/{loc}/wol/publication/{rs}/{lib}/gwt/4` ("성경 책들"). 공개된 장만 링크가 있다.
+ * - 한국어 약칭 「하진」. 목차: `/{loc}/wol/publication/{rs}/{lib}/gwt/4` ("성경 책들"). 공개된 장만
+ *   링크가 있다. (영어는 이 목차 경로가 404 — 장 문서 번호는 같아서 장은 받을 수 있다.)
  *   그날 기준 에스겔·다니엘·호세아·요엘 4개 장만 있었다 — 책이 단계적으로 공개된다.
  *   소개 문서(이 책을 활용하는 방법, 보충 자료 목록)는 `/gwt/0` 에 있다.
  * - 장 = 성경 책 한 권. 문서 번호는 `1102026500 + 책 번호` (에스겔 26 → 1102026526).
@@ -35,8 +36,6 @@ import { scraper } from './wol-scraper.js';
 
 const PUB = 'gwt';
 const DOC_BASE = 1102026500;
-const USER_AGENT =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
 
 /** 실측해서 장이 파싱되는 것을 확인한 언어만 넣는다 (wol-locales.js 와 같은 원칙). */
 export const GUIDEBOOK_LANGS = ['KO', 'E'];
@@ -128,7 +127,7 @@ export function chapterDocUrl(lang, bookNum) {
 }
 
 async function fetchPage(url) {
-  const res = await safeFetch(url, { headers: { 'User-Agent': USER_AGENT } });
+  const res = await safeFetch(url);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`wol.jw.org 응답 오류 HTTP ${res.status}: ${url}`);
   return cheerio.load(await res.text());
@@ -319,6 +318,7 @@ export function parseGuidebookChapter(html, { bookNum, langCode = 'KO', url = nu
 
   const result = {
     publication: '하느님의 말씀은 진리입니다—성경 안내서',
+    publication_short: '하진',
     book_num: bookNum,
     chapter_label: clean(article.find('header p.contextTtl, p.contextTtl').first().text()),
     title: clean(article.find('h1').first().text()),
@@ -647,12 +647,18 @@ async function getChapterList(langwritten) {
   const lang = guideLocale(langwritten);
   const base = `${wolBase(lang)}/publication/${lang.rsconf}/${lang.lib}/${PUB}`;
   const [intro$, books$] = await Promise.all([fetchPage(`${base}/0`), fetchPage(`${base}/4`)]);
-  if (!books$) throw new Error('wol.jw.org 에서 「성경 안내서」 목차를 찾지 못했습니다.');
+  if (!books$) {
+    throw new Error(
+      `wol.jw.org 에서 「성경 안내서」 목차를 찾지 못했습니다 (${lang.code}). ` +
+        '영어 목차 경로는 아직 확인되지 않았습니다 — langwritten "KO" 로 목차를 보고, 장은 E 로도 받을 수 있습니다.',
+    );
+  }
 
   const chapters = parseToc(books$.html(), lang).filter((i) => i.book_num && i.docid !== DOC_BASE);
   const intro = intro$ ? parseToc(intro$.html(), lang).filter((i) => !i.book_num || i.docid === DOC_BASE) : [];
   return {
     publication: '하느님의 말씀은 진리입니다—성경 안내서',
+    publication_short: '하진',
     symbol: PUB,
     language: lang.code,
     toc_url: `${base}/4`,

@@ -28,6 +28,16 @@ import fetch from 'node-fetch';
 /** 허용 도메인. 정확히 일치하거나 그 하위 도메인이어야 한다. */
 export const ALLOWED_DOMAINS = Object.freeze(['jw.org', 'jw-cdn.org']);
 
+/**
+ * 모든 요청에 쓰는 User-Agent — 이 서버임을 그대로 밝힌다.
+ *
+ * 2026-11-06 실측: wol.jw.org 는 node 에서 **브라우저로 위장한** UA(Chrome/…)를 보내면
+ * 본문 없는 202 를 돌려준다(봇 차단). 성구 도구들이 이 때문에 "절을 찾지 못했습니다"로
+ * 조용히 실패하고 있었다. 정직한 UA 로는 200 과 정상 본문이 온다. 도구 쪽에서 넘긴
+ * User-Agent 는 무시하고 항상 이 값을 쓴다.
+ */
+export const USER_AGENT = 'JW-MCP/2.0 (+https://github.com/teenfo/JW-MCP)';
+
 const MAX_REDIRECTS = 5;
 
 export class DisallowedHostError extends Error {
@@ -81,13 +91,23 @@ export function isAllowedUrl(input) {
 export async function safeFetch(input, options = {}) {
   let url = assertAllowedUrl(input);
 
+  const headers = { ...(options.headers || {}) };
+  for (const k of Object.keys(headers)) if (k.toLowerCase() === 'user-agent') delete headers[k];
+  headers['User-Agent'] = USER_AGENT;
+
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    const response = await fetch(url.href, { ...options, redirect: 'manual' });
+    const response = await fetch(url.href, { ...options, headers, redirect: 'manual' });
 
     if (response.status >= 300 && response.status < 400 && response.headers.get('location')) {
       const next = new URL(response.headers.get('location'), url);
       url = assertAllowedUrl(next.href);
       continue;
+    }
+
+    // wol.jw.org 의 봇 차단 응답(본문 없는 202)을 정상 응답으로 넘기면, 파서가 빈 페이지를
+    // "자료 없음"으로 읽어 조용히 틀린 답을 낸다. 여기서 분명한 오류로 바꾼다.
+    if (response.status === 202 && url.hostname.endsWith('jw.org')) {
+      throw new Error(`jw.org 가 요청을 보류했습니다 (HTTP 202, 본문 없음): ${url.href}`);
     }
     return response;
   }
