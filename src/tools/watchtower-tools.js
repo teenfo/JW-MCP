@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
-import fetch from 'node-fetch';
+// 모든 외부 요청은 허용 호스트 검사를 거친다 (safe-fetch.js 참조).
+import { safeFetch as fetch } from './safe-fetch.js';
 
 import { fetchPublicationData, downloadRtfContent, getCurrentWatchtowerIssue } from './rtf-utils.js';
 import { parseRTF } from './rtf-parser.js';

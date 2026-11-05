@@ -20,7 +20,8 @@
  * 찾다가 항상 빈 배열을 돌려주던 이유다.
  */
 
-import fetch from 'node-fetch';
+// 모든 외부 요청은 허용 호스트 검사를 거친다 (safe-fetch.js 참조).
+import { safeFetch as fetch } from './safe-fetch.js';
 import * as cheerio from 'cheerio';
 import { getBookName } from './bible-books.js';
 import { chapterUrl, resolveLocale, absoluteUrl, DEFAULT_LANG } from './wol-locales.js';
