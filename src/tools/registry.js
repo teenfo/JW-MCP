@@ -20,6 +20,7 @@ import {
 import { lessonTools, handleLessonTools } from './lesson-tools.js';
 import { wolDocumentTools, handleWolDocumentTools } from './wol-document.js';
 import { guidebookTools, handleGuidebookTools } from './guidebook-tools.js';
+import { glossaryTools, handleGlossaryTools } from './glossary-tools.js';
 
 /** MCP tools/list 에 노출되는 전체 도구 정의. */
 export const allTools = [
@@ -33,6 +34,7 @@ export const allTools = [
   ...lessonTools,
   ...wolDocumentTools,
   ...guidebookTools,
+  ...glossaryTools,
 ];
 
 /** 각 핸들러는 자기 도구가 아니면 null 을 반환한다(상류 규약). */
@@ -44,6 +46,7 @@ const toolHandlers = [
   handleLessonTools,
   handleWolDocumentTools,
   handleGuidebookTools,
+  handleGlossaryTools,
 ];
 
 /** 도구 이름 → 존재 여부. 인증 계층이 미지의 도구를 빠르게 거르는 데 쓴다. */
