@@ -20,6 +20,9 @@ src/
 │   ├── registry.js       ★ 도구 목록·핸들러의 유일한 정의처
 │   ├── scripture-tools.js  bible-books.js  wol-scraper.js
 │   ├── watchtower-tools.js workbook-tools.js lesson-tools.js
+│   ├── safe-fetch.js     ★ 모든 외부 요청의 유일한 관문 (허용 호스트·UA)
+│   ├── wol-document.js   ★ 범용 출판물 목차·문서 도구 (새 서적은 여기로)
+│   ├── guidebook-tools.js  「성경 안내서」(gwt) — wol-document 위의 얇은 층
 │   ├── captions-tool.js
 │   └── rtf-parser.js     rtf-utils.js
 ├── auth/
@@ -30,6 +33,32 @@ src/
 ├── dash/api.js           대시보드용 내부 API (/api/dash/*)
 └── web/pages.js          로그인·가입·동의·계정·관리자 HTML
 ```
+
+## 가장 중요한 원칙 — 출처는 jw.org 뿐
+
+**모든 자료는 jw.org / wol.jw.org (및 jw.org 공식 파일 서버 jw-cdn.org) 에서만 가져온다.**
+이 원칙은 `src/tools/safe-fetch.js` 가 코드로 강제한다.
+
+- 도구 파일에서 `node-fetch` 를 직접 import 하지 말 것. `import { safeFetch as fetch } from './safe-fetch.js'`.
+  `tests/safe-fetch.test.js` 가 이를 검사한다.
+- 허용 목록 밖 주소는 요청 자체를 보내지 않는다. 리디렉션도 매 단계 다시 검사한다.
+- User-Agent 는 safeFetch 가 정직한 값으로 고정한다. **브라우저로 위장하지 말 것** —
+  wol.jw.org 는 node 의 위장 UA 에 본문 없는 202 를 준다(2026-11-06, 성구 도구가 이 때문에
+  "절을 찾지 못했습니다"로 조용히 실패했다). safeFetch 는 jw.org 의 빈 202 를 오류로 바꾼다.
+
+## 새 서적이 나왔을 때
+
+대부분은 **코드를 고칠 필요가 없다.** `get_wol_publication_toc(기호)` 로 목차를 보고
+`get_wol_document(docid | url | 기호+번호)` 로 장을 받는다. 연구용 출판물은 WOL 의 같은 HTML
+틀을 공유한다(구조 설명은 `wol-document.js` 상단 주석). 「용하」(wcg)·「하진」(gwt)·「훈」(lfb)
+을 같은 파서로 검증했다.
+
+전용 도구는 그 책만의 요소에 이름을 붙여야 할 때만 만든다 — 그것도 `guidebook-tools.js` 처럼
+`getWolDocument` 위의 얇은 층으로. 파서를 복제하지 말 것.
+
+문서 번호를 산술로 계산하지 말 것. 「훈」 도구가 `1102016000+과` 로 계산하다가 전부 404 였다
+(실제 1과는 1102016011, 중간에 표지·차례가 낀다). 번호 → 문서는 목차에서 찾는다
+(`findDocidByNumber`). 「하진」의 `1102026500+책` 은 실측으로 확인된 예외다.
 
 ## 도구를 추가할 때
 
@@ -135,5 +164,6 @@ npm run test:oauth # OAuth 전 구간 — 서버를 띄우고 커넥터 흐름�
 - pub-media API 의 `docid` 는 파수대 RTF 항목에서 **전부 0** 이라 쓸 수 없다. WOL 문서
   링크는 날짜별 집회 페이지(`/wol/dt/...`)의 `.todayItem.pub-w` 에서 얻는다.
 - `formattedDate` 등에 HTML 엔티티(`&nbsp;`)가 그대로 온다 — `decodeEntities` 를 거친다.
+- 「훈」은 103장까지다(상류 설명의 116 은 틀렸다).
 - 사용량 기록에 **도구 인자를 저장하지 않는다** — 누가 어떤 구절을 찾아봤는지까지
   남길 이유가 없다. 도구 이름·성공여부·소요시간만 남긴다.
