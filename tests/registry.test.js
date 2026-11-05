@@ -10,8 +10,8 @@ import assert from 'node:assert/strict';
 
 import { allTools, toolNames, callTool } from '../src/tools/registry.js';
 
-test('도구 13종이 모두 등록된다', () => {
-  assert.equal(allTools.length, 13);
+test('도구 15종이 모두 등록된다', () => {
+  assert.equal(allTools.length, 15);
 });
 
 test('상류에서 HTTP 서버에 누락됐던 lesson 도구가 포함된다', () => {

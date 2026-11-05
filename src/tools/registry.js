@@ -18,6 +18,7 @@ import {
   handleScriptureTools,
 } from './scripture-tools.js';
 import { lessonTools, handleLessonTools } from './lesson-tools.js';
+import { wolDocumentTools, handleWolDocumentTools } from './wol-document.js';
 import { guidebookTools, handleGuidebookTools } from './guidebook-tools.js';
 
 /** MCP tools/list 에 노출되는 전체 도구 정의. */
@@ -30,6 +31,7 @@ export const allTools = [
   getVerseWithStudyTool,
   getBibleVerseURLTool,
   ...lessonTools,
+  ...wolDocumentTools,
   ...guidebookTools,
 ];
 
@@ -40,6 +42,7 @@ const toolHandlers = [
   handleWatchtowerTools,
   handleScriptureTools,
   handleLessonTools,
+  handleWolDocumentTools,
   handleGuidebookTools,
 ];
 
