@@ -40,6 +40,9 @@ const DOC_BASE = 1102026500;
 /** 실측해서 장이 파싱되는 것을 확인한 언어만 넣는다 (wol-locales.js 와 같은 원칙). */
 export const GUIDEBOOK_LANGS = ['KO', 'E'];
 
+/** 한 장짜리 책 — 인용이 "옵 15" 처럼 절만으로 온다. */
+const SINGLE_CHAPTER_BOOKS = new Set([31, 57, 63, 64, 65]);
+
 /** include_verse_text 일 때 성경 장을 몇 개까지 받아 올지. 장마다 요청 1회. */
 const MAX_VERSE_CHAPTERS = 8;
 
@@ -198,7 +201,12 @@ export function parseCitation(raw, ctx, langCode) {
   out.book = ctx.book;
 
   const cv = rest.match(/^(\d+):(.+)$/);
-  if (cv) {
+  if (!cv && book && SINGLE_CHAPTER_BOOKS.has(book) && /^\d+(?:\s*[-–]\s*\d+)?(?:,\s*\d+)*$/.test(rest)) {
+    // 한 장짜리 책은 장 없이 절만 쓴다 ("옵 15", "유 9").
+    out.chapter = 1;
+    out.verses = rest;
+    ctx.chapter = 1;
+  } else if (cv) {
     out.chapter = parseInt(cv[1], 10);
     out.verses = cv[2].replace(/\s+/g, ' ').trim();
     ctx.chapter = out.chapter;
@@ -332,10 +340,12 @@ export function parseGuidebookChapter(html, { bookNum, langCode = 'KO', url = nu
 
   // --- 주요 정보 네모 ---
   article.find('.openingContent p').each((_, p) => {
+    // 머리 부분의 "성경 책 목록" 상자는 header_boxes 로 따로 나간다 — 여기서 중복하지 않는다.
+    if ($(p).closest('.boxSupplement').length) return;
     const text = clean($(p).text());
     if (!text) return;
     const i = text.indexOf(':');
-    if (i > 0 && i < 20) result.key_info.push({ label: text.slice(0, i).trim(), value: text.slice(i + 1).trim() });
+    if (i > 0 && i < 45) result.key_info.push({ label: text.slice(0, i).trim(), value: text.slice(i + 1).trim() });
     else result.key_info.push({ label: null, value: text });
   });
   if (!result.key_info.length) warnings.push('주요 정보 네모(.openingContent)를 찾지 못했습니다.');

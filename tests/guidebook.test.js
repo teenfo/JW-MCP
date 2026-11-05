@@ -28,9 +28,9 @@ const FIXTURE = `
   <p id="p3">요점: 요점 내용</p>
   <p id="p4">성경 주제와의 연관성: 연관성 내용</p>
   <p id="p5">필자: 에스겔</p>
+  <div class="boxSupplement"><aside><div class="boxTtl"><h2>성경 책 목록</h2></div>
+   <div class="boxContent"><p>기록이 완료된 책:</p><p>창세기, 출애굽기</p></div></aside></div>
  </div>
- <div class="boxSupplement"><aside><div class="boxTtl"><h2>성경 책 목록</h2></div>
-  <div class="boxContent"><p>기록이 완료된 책:</p><p>창세기, 출애굽기</p></div></aside></div>
  <div class="bodyTxt">
   <div id="tt19">
    <h2 id="p9">이 책이 중요한 이유</h2>
@@ -76,6 +76,7 @@ test('장 머리와 주요 정보 네모를 읽는다', () => {
   assert.equal(ch.title, '에스겔');
   assert.deepEqual(ch.key_info.map((k) => k.label), ['요점', '성경 주제와의 연관성', '필자']);
   assert.equal(ch.header_boxes[0].title, '성경 책 목록');
+  assert.ok(!ch.key_info.some((k) => k.value.includes('창세기')), '상자 내용이 주요 정보에 중복되지 않는다');
 });
 
 test('소제목·질문·항을 순서대로 읽고 답란·인용 반복은 건너뛴다', () => {
@@ -137,6 +138,9 @@ test('인용·절 표기 파싱', () => {
   assert.equal(parseCitation('—34:25-28;', ctx, 'KO').verses, '25-28');
   assert.equal(parseCitation('고후 6:16;', ctx, 'KO').book, 47);
   assert.equal(parseCitation(' 21:3', ctx, 'KO').book, 47);
+  const ob = parseCitation('옵 15', { book: 26, chapter: null }, 'KO');
+  assert.deepEqual([ob.book, ob.chapter, ob.verses], [31, 1, '15']);
+  assert.equal(parseCitation('라 7:6', { book: 26, chapter: null }, 'KO').book, 15);
 });
 
 test('책 지정은 번호·한국어·약칭·영어 모두 받는다', () => {
