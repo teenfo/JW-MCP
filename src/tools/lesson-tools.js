@@ -1,9 +1,5 @@
-// 모든 외부 요청은 허용 호스트 검사를 거친다 (safe-fetch.js 참조).
-import { safeFetch as fetch } from './safe-fetch.js';
-import * as cheerio from 'cheerio';
-
-const BASE_URL = 'https://wol.jw.org';
-const LESSON_BASE_ID = 1102016000;
+// 자료는 wol.jw.org 에서만 가져온다 — 범용 문서 도구(→ safe-fetch.js)를 거친다.
+import { getWolDocument, getPublicationToc } from './wol-document.js';
 
 /**
  * Get lesson content tool definition
@@ -66,98 +62,51 @@ export const getLessonListTool = {
 };
 
 /**
- * Fetch lesson content from wol.jw.org
+ * 「훈」(lfb) 과 → 문서.
+ *
+ * 예전 구현은 문서 번호를 `1102016000 + 과` 로 계산했지만 실제 1과는 1102016011 이고
+ * 표지·차례·부 소개 문서가 중간에 끼어 번호가 연속되지도 않는다 — 그래서 모든 과가
+ * "not found" 로 실패했다(2026-11-06 확인). 지금은 wol.jw.org 목차에서 "N장" 제목으로
+ * 문서를 찾는 범용 도구(wol-document.js)를 쓴다.
  */
+const LFB = 'lfb';
+const langOf = (language) => (language === 'en' ? 'E' : 'KO');
+
 async function fetchLessonContent(lessonNumber, language = 'ko') {
-  const langCode = language === 'ko' ? 'r8/lp-ko' : 'r1/lp-e';
-  const docId = LESSON_BASE_ID + lessonNumber;
-  const url = `${BASE_URL}/${language}/wol/d/${langCode}/${docId}`;
-
-  try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; JW-MCP/1.0)',
-      },
-    });
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error(`Lesson ${lessonNumber} not found`);
-      }
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const html = await response.text();
-    const $ = cheerio.load(html);
-    
-    // Extract title
-    const title = $('article h2').first().text().trim();
-    
-    // Extract lesson number from page
-    const lessonLabel = $('article p.themeScrp').first().text().trim();
-    
-    // Extract main content
-    const contentParagraphs = [];
-    $('article .bodyTxt p').each((i, elem) => {
-      const text = $(elem).text().trim();
-      if (text) {
-        contentParagraphs.push(text);
-      }
-    });
-
-    // Extract scripture reference if exists
-    const scriptureRef = $('article p.sb').last().text().trim();
-
-    return {
-      lesson_number: lessonNumber,
-      lesson_label: lessonLabel,
-      title: title,
-      content: contentParagraphs.join('\n\n'),
-      scripture_reference: scriptureRef,
-      url: url
-    };
-  } catch (error) {
-    throw error;
-  }
+  const doc = await getWolDocument({ symbol: LFB, number: lessonNumber, langwritten: langOf(language) });
+  const items = doc.sections.flatMap((s) => s.items);
+  const content = items
+    .filter((i) => i.type === 'text' || i.type === 'paragraph')
+    .map((i) => i.text)
+    .join('\n\n');
+  const refs = [...new Set(items.flatMap((i) => i.scriptures || []).map((r) => r.text))];
+  return {
+    lesson_number: lessonNumber,
+    lesson_label: doc.label,
+    title: doc.title,
+    content,
+    scripture_reference: refs.join('; '),
+    questions: items.filter((i) => i.type === 'question').map((i) => i.text),
+    url: doc.source_url,
+  };
 }
 
-/**
- * Fetch multiple lesson titles
- */
+/** 목차에서 과 목록을 만든다 (그룹이 있으면 모두 연다). */
 async function fetchLessonList(start = 1, end = 116, language = 'ko') {
-  const lessons = [];
-  
-  // Fetch lessons in parallel (with limit to avoid overwhelming server)
-  const batchSize = 10;
-  for (let i = start; i <= end; i += batchSize) {
-    const batch = [];
-    const batchEnd = Math.min(i + batchSize - 1, end);
-    
-    for (let j = i; j <= batchEnd; j++) {
-      batch.push(
-        fetchLessonContent(j, language)
-          .then(lesson => ({
-            lesson_number: lesson.lesson_number,
-            lesson_label: lesson.lesson_label,
-            title: lesson.title,
-            url: lesson.url
-          }))
-          .catch(error => ({
-            lesson_number: j,
-            error: error.message
-          }))
-      );
-    }
-    
-    const results = await Promise.all(batch);
-    lessons.push(...results);
-    
-    // Small delay between batches
-    if (batchEnd < end) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
+  const langwritten = langOf(language);
+  const first = await getPublicationToc({ symbol: LFB, langwritten });
+  const docs = [...first.documents];
+  for (const g of first.groups) {
+    if (String(g.group) === '0') continue;
+    docs.push(...(await getPublicationToc({ symbol: LFB, group: g.group, langwritten })).documents);
   }
-  
+  const byNumber = new Map();
+  for (const d of docs) if (d.number && !byNumber.has(d.number)) byNumber.set(d.number, d);
+  const lessons = [];
+  for (let n = start; n <= end; n++) {
+    const d = byNumber.get(n);
+    lessons.push(d ? { lesson_number: n, title: d.title, url: d.url } : { lesson_number: n, error: '목차에 없음' });
+  }
   return lessons;
 }
 

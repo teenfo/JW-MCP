@@ -565,7 +565,9 @@ export function parseToc(html, lang, symbol) {
       groups.push({ group: m[1], title, url: `https://wol.jw.org${href}` });
     } else if ((m = href.match(docRe))) {
       seen.add(href);
-      const num = title.match(/^(\d+)\s/);
+      // 번호 붙은 문서: "15 나오미와 룻", "1장 하느님께서…", "제3과 …", "Lesson 4 …", "Chapter 2 …"
+      // "1부 소개" 같은 부(部) 머리 문서는 번호로 치지 않는다 — 장 번호와 겹친다.
+      const num = title.match(/^(?:제\s*)?(\d+)\s*(?:장|과)?\s/) || title.match(/^(?:Lesson|Chapter)\s+(\d+)\b/i);
       documents.push({
         docid: parseInt(m[1], 10),
         title,

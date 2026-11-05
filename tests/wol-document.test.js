@@ -243,6 +243,11 @@ test('목차: 그룹 링크와 번호 붙은 문서를 구분한다', () => {
   assert.deepEqual(toc.groups.map((g) => g.group), ['27']);
   assert.deepEqual(toc.documents.map((d) => [d.docid, d.number ?? null]), [[1102025970, null], [1102025915, 15]]);
   assert.equal(toc.page_title, '용기 (용하)');
+  const lfb = parseToc(`<a href="/ko/wol/d/r8/lp-ko/1102016011">1장 하느님께서 하늘과 땅을 만드시다</a>
+    <a href="/ko/wol/d/r8/lp-ko/1102016131">1부 소개</a>
+    <a href="/en/wol/d/r1/lp-e/1102016012">x</a>`, { locale: 'ko', rsconf: 'r8', lib: 'lp-ko' }, 'lfb');
+  assert.deepEqual(lfb.documents.map((d) => d.number ?? null), [1, null], '"N장"은 번호, "N부" 머리 문서는 번호가 아니다');
+  assert.equal(lfb.documents.length, 2, '다른 언어 링크는 섞지 않는다');
 });
 
 test('wol 문서 링크에서 번호를 뽑고 다른 주소는 거부한다', () => {
